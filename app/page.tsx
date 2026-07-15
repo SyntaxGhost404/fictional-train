@@ -29,6 +29,9 @@ type IconName =
   | "file"
   | "send"
   | "arrow"
+  | "back"
+  | "copy"
+  | "refresh"
   | "check"
   | "pause"
   | "play";
@@ -91,6 +94,12 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       return <svg {...common}><path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/></svg>;
     case "arrow":
       return <svg {...common}><path d="M5 12h14M14 7l5 5-5 5"/></svg>;
+    case "back":
+      return <svg {...common}><path d="M19 12H5M10 7l-5 5 5 5"/></svg>;
+    case "copy":
+      return <svg {...common}><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>;
+    case "refresh":
+      return <svg {...common}><path d="M20 11a8 8 0 1 0-2.2 5.5"/><path d="M20 4v7h-7"/></svg>;
     case "check":
       return <svg {...common}><path d="m5 12.5 4.2 4.2L19 7"/></svg>;
     case "pause":
@@ -171,10 +180,15 @@ export default function Home() {
   const [researchStep, setResearchStep] = useState(0);
   const [audience, setAudience] = useState<"individual" | "business">("individual");
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [pricingReturnView, setPricingReturnView] = useState<View>("home");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const historyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const regenerateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -227,6 +241,8 @@ export default function Home() {
     if (streamTimer.current) clearInterval(streamTimer.current);
     if (historyTimer.current) clearTimeout(historyTimer.current);
     if (imageTimer.current) clearTimeout(imageTimer.current);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    if (regenerateTimer.current) clearTimeout(regenerateTimer.current);
   }, []);
 
   const showToast = (text: string) => {
@@ -236,6 +252,12 @@ export default function Home() {
   };
 
   const go = (next: View) => {
+    if (next === "pricing" && view !== "pricing") setPricingReturnView(view);
+    if (next !== "chat" && regenerateTimer.current) {
+      clearTimeout(regenerateTimer.current);
+      regenerateTimer.current = null;
+      setRegenerating(false);
+    }
     setView(next);
     setModelMenu(false);
     setToolsMenu(false);
@@ -277,6 +299,8 @@ export default function Home() {
     if (historyTimer.current) clearTimeout(historyTimer.current);
     setActivePrompt(prompt);
     setResponse("");
+    setCopied(false);
+    setRegenerating(false);
     setChatPhase("thinking");
     setHistoryPending(true);
     go("chat");
@@ -303,6 +327,46 @@ export default function Home() {
     if (!prompt) return;
     setMessage("");
     streamAnswer(prompt);
+  };
+
+  const copyResponse = async () => {
+    let success = false;
+    try {
+      await navigator.clipboard.writeText(response);
+      success = true;
+    } catch {
+      try {
+        const fallback = document.createElement("textarea");
+        fallback.value = response;
+        fallback.setAttribute("readonly", "");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        success = document.execCommand("copy");
+        fallback.remove();
+      } catch {
+        success = false;
+      }
+    }
+    if (!success) {
+      showToast("Copy is unavailable in this browser.");
+      return;
+    }
+    setCopied(true);
+    showToast("Response copied.");
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 1600);
+  };
+
+  const regenerateResponse = () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    if (regenerateTimer.current) clearTimeout(regenerateTimer.current);
+    regenerateTimer.current = setTimeout(() => {
+      regenerateTimer.current = null;
+      streamAnswer(activePrompt);
+    }, 440);
   };
 
   const generateImage = (event?: FormEvent, promptOverride?: string) => {
@@ -333,6 +397,7 @@ export default function Home() {
 
   const recentChats = [historyTitle, "Weekend itinerary ideas", "Explain a design system", "Notes for a product brief"];
   const searchResults = recentChats.filter((item) => item.toLowerCase().includes(searchQuery.toLowerCase()));
+  const viewNames: Record<View, string> = { home: "home", chat: "your chat", images: "Images", apps: "Apps", gpts: "GPTs", research: "Deep research", pricing: "Pricing" };
   const activeNav = view === "chat" ? "New chat" : view === "gpts" ? "Apps" : view;
   const rootClass = `app-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${cookieVisible ? "with-cookie" : ""} ${view === "pricing" ? "pricing-mode" : ""}`;
 
@@ -351,10 +416,11 @@ export default function Home() {
           <div className="nav-search-anchor">
             <button className={`nav-item ${searchOpen ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setSearchOpen((open) => !open); setModelMenu(false); }} type="button"><Icon name="search" size={20} /><span>Search chats</span></button>
             {searchOpen && (
-              <section className="search-panel popover" aria-label="Search chat history" onClick={(event) => event.stopPropagation()}>
+              <section className="search-panel popover" role="dialog" aria-labelledby="search-panel-title" onClick={(event) => event.stopPropagation()}>
+                <button className="search-close" aria-label="Close search" onClick={() => setSearchOpen(false)} type="button"><Icon name="close" size={17}/></button>
                 <div className="search-art"><span /><span /><span /></div>
                 <div className="search-panel-copy">
-                  <h2>Search your chat history</h2>
+                  <h2 id="search-panel-title">Search your chat history</h2>
                   <label className="search-field"><Icon name="search" size={18} /><input autoFocus aria-label="Search chats" onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search chats" value={searchQuery} /></label>
                   <div className="search-results">
                     {searchResults.length ? searchResults.map((item, index) => (
@@ -396,7 +462,10 @@ export default function Home() {
       <div className="page-column">
         {view === "pricing" ? (
           <header className="pricing-header">
-            <button className="pricing-brand" onClick={newChat} type="button"><LogoMark size={28} /><span>Nimbus</span></button>
+            <div className="pricing-return-group">
+              <button className="pricing-back" aria-label={`Back to ${viewNames[pricingReturnView]}`} onClick={() => go(pricingReturnView)} title={`Back to ${viewNames[pricingReturnView]}`} type="button"><Icon name="back" size={18}/><span>Back</span></button>
+              <button className="pricing-brand" aria-label="Nimbus home" onClick={newChat} title="Nimbus home" type="button"><LogoMark size={28} /><span>Nimbus</span></button>
+            </div>
             <nav aria-label="Pricing navigation"><button type="button">About</button><button type="button">Features</button><button type="button">Learn</button><button type="button">Business</button><button className="selected" type="button">Pricing</button></nav>
             <div className="header-actions"><ActionButton variant="primary" onClick={openDemoNotice}>Log in</ActionButton><ActionButton onClick={openDemoNotice}>Sign up for free</ActionButton></div>
           </header>
@@ -425,7 +494,7 @@ export default function Home() {
                 <div className="message-row user-row"><div className="user-message">{activePrompt}</div></div>
                 <div className="message-row assistant-row"><div className={`assistant-mark ${chatPhase === "thinking" ? "thinking" : ""}`}><LogoMark size={22} /></div><div className="assistant-message">
                   {chatPhase === "thinking" ? <div className="typing-state"><span /><span /><span /></div> : <p>{response}<span className={chatPhase === "streaming" ? "stream-caret" : ""} /></p>}
-                  {chatPhase === "done" && <div className="response-actions"><button onClick={() => showToast("Response copied.")} type="button">Copy</button><button onClick={() => streamAnswer(activePrompt)} type="button">Regenerate</button></div>}
+                  {chatPhase === "done" && <div className="response-actions"><button className={`response-action ${copied ? "copied" : ""}`} aria-label={copied ? "Copied" : "Copy response"} data-tooltip={copied ? "Copied" : "Copy"} onClick={copyResponse} type="button"><span className="action-icon-swap"><span className="copy-glyph"><Icon name="copy" size={18}/></span><span className="check-glyph"><Icon name="check" size={18}/></span></span></button><button className={`response-action ${regenerating ? "regenerating" : ""}`} aria-label="Regenerate response" data-tooltip="Regenerate" disabled={regenerating} onClick={regenerateResponse} type="button"><Icon name="refresh" size={18}/></button></div>}
                 </div></div>
               </div>
               <div className="chat-composer-dock"><ChatComposer message={message} setMessage={setMessage} submit={submitChat} toolsMenu={toolsMenu} toggleTools={toggleTools} showToast={showToast} openDemoNotice={openDemoNotice} compact /></div>
