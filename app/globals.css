@@ -51,7 +51,8 @@ button {
   --cookie-height: 0px;
   --main-left: var(--rail-width);
   position: relative;
-  width: 100vw;
+  width: 100%;
+  max-width: 100%;
   height: 100dvh;
   overflow: hidden;
   color: var(--text);
@@ -979,7 +980,7 @@ a:focus-visible {
   }
 
   .model-menu {
-    left: -48px;
+    left: -46px;
     width: min(320px, calc(100vw - 24px));
   }
 
@@ -1095,10 +1096,6 @@ a:focus-visible {
   .header-actions .pill-button.secondary {
     display: none;
   }
-
-  .model-menu {
-    left: -46px;
-  }
 }
 
 @media (max-height: 700px) and (min-width: 768px) {
@@ -1162,6 +1159,10 @@ a:focus-visible {
   background: var(--surface);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
   transform-origin: left top;
+}
+
+.sidebar-closed .search-panel {
+  left: 56px;
 }
 
 .search-close {
@@ -1397,8 +1398,10 @@ a:focus-visible {
 @keyframes soft-pulse { 50% { transform: scale(0.92); opacity: 0.62; } }
 
 .assistant-message {
+  position: relative;
   min-width: 0;
   max-width: 690px;
+  overflow: visible;
   color: var(--text);
   font-size: 16px;
   line-height: 27px;
@@ -1439,8 +1442,11 @@ a:focus-visible {
 @keyframes blink { 50% { opacity: 0; } }
 
 .response-actions {
+  position: relative;
+  z-index: 12;
   display: flex;
   gap: 2px;
+  overflow: visible;
   margin-top: 15px;
 }
 
@@ -1474,7 +1480,8 @@ a:focus-visible {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
-  z-index: 4;
+  z-index: 100;
+  max-width: calc(100vw - 24px);
   padding: 5px 8px;
   border-radius: 6px;
   color: var(--page-bg);
@@ -1489,10 +1496,27 @@ a:focus-visible {
   transition: opacity 100ms ease 220ms, transform 100ms ease 220ms;
 }
 
+.response-action:first-child::after {
+  left: 0;
+  transform: translateY(3px) scale(0.96);
+  transform-origin: bottom left;
+}
+
 .response-action:hover::after,
-.response-action:focus-visible::after {
+.response-action:focus-visible::after,
+.response-action.copied::after {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
+}
+
+.response-action:first-child:hover::after,
+.response-action:first-child:focus-visible::after,
+.response-action:first-child.copied::after {
+  transform: translateY(0) scale(1);
+}
+
+.response-action.copied::after {
+  transition-delay: 0ms;
 }
 
 .action-icon-swap {
@@ -2019,6 +2043,10 @@ a:focus-visible {
     max-height: calc(100dvh - 80px);
   }
 
+  .sidebar-closed .search-panel {
+    left: 12px;
+  }
+
   .search-art { height: 116px; }
   .history-section { padding-right: 8px; padding-left: 8px; }
   .chat-scroll { width: calc(100% - 24px); padding-top: 28px; padding-bottom: 175px; }
@@ -2051,6 +2079,7 @@ a:focus-visible {
   .research-timeline { width: 100%; }
   .research-report { margin-right: 0; margin-left: 0; padding: 25px 22px; }
   .pricing-header { height: 56px; flex-basis: 56px; padding: 0 14px; }
+  .pricing-mode .mobile-scrim { display: none; }
   .pricing-header .pill-button.secondary { display: none; }
   .pricing-hero { padding-top: 68px; }
   .pricing-hero h1 { margin: 20px 0; font-size: 48px; line-height: 52px; }
@@ -2101,6 +2130,13 @@ a:focus-visible {
   .audience-toggle { height: 52px; }
   .audience-toggle button { font-size: 12px; }
   .business-grid { width: calc(100% - 28px); }
+
+  .toast {
+    top: 64px;
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+  }
 }
 
 @media (max-width: 420px) {
