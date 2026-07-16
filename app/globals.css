@@ -1519,6 +1519,33 @@ a:focus-visible {
   transition-delay: 0ms;
 }
 
+.response-action.copied::after {
+  display: none;
+}
+
+.copy-feedback-tooltip {
+  position: fixed;
+  z-index: 200;
+  min-width: 58px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--page-bg);
+  background: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  animation: copy-feedback-in 120ms cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes copy-feedback-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(.96); }
+  to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+
 .action-icon-swap {
   position: relative;
   display: block;
@@ -1788,7 +1815,9 @@ a:focus-visible {
 .preview-window > div + div { margin-left: 10px; background: linear-gradient(135deg, #fff1db, #bb2b28); }
 .preview-window p { margin: 12px 0 0; font-size: 14px; line-height: 19px; }
 .carousel-controls { position: absolute; bottom: 25px; left: 40px; z-index: 5; display: flex; align-items: center; gap: 8px; }
-.carousel-controls button { display: flex; width: 18px; height: 18px; align-items: center; justify-content: center; padding: 0; border: 0; color: #fff; background: transparent; cursor: pointer; }
+.carousel-controls button { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; color: #fff; background: transparent; cursor: pointer; }
+.carousel-controls button:hover,
+.carousel-controls button:focus-visible { background: rgba(0, 0, 0, .16); }
 .carousel-controls i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.35); }
 .carousel-controls i.active { background: #fff; }
 .carousel-next { position: absolute; right: 20px; top: calc(50% - 18px); z-index: 5; border: 0; color: #fff; background: rgba(0,0,0,.08); }
@@ -1893,6 +1922,7 @@ a:focus-visible {
 .gpt-trending strong { overflow: hidden; font-size: 14px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .gpt-trending small { display: -webkit-box; overflow: hidden; font-size: 12px; line-height: 15px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .gpt-trending em { margin-top: 3px; color: var(--text-subtle); font-size: 11px; font-style: normal; }
+.gpt-empty { margin: 28px 0 0; text-align: center; }
 
 .research-view { padding: 60px 24px 110px; }
 .research-start { width: min(768px, 100%); margin: 70px auto 0; text-align: center; }

@@ -111,6 +111,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 const assistantResponse = "Here’s a concise way to approach it: start by defining the outcome, separate the work into the smallest testable steps, and validate the riskiest assumption first. Once that holds, build the remaining pieces in order and keep a short record of what changed. That gives you a clear path forward without over-planning.";
 
+const imageIdeas = ["Portrait mode", "Pin collection", "Miniature figure", "Hand-drawn style", "Interior design"];
+
 const appDirectory = [
   { name: "Canvas Studio", copy: "Create, review, and refine visual designs", tone: "violet", letter: "C", category: "Productivity" },
   { name: "Tablebase", copy: "Add structured data to your conversations", tone: "white", letter: "T", category: "Productivity" },
@@ -123,12 +125,12 @@ const appDirectory = [
 ];
 
 const gptDirectory = [
-  { name: "Research Scholar", copy: "Find sources and turn dense papers into clear notes.", by: "Nimbus Labs", tone: "violet", letter: "R" },
-  { name: "Trip Planner", copy: "Shape a practical itinerary around your pace and budget.", by: "Community", tone: "yellow", letter: "T" },
-  { name: "Visual Maker", copy: "Develop polished concepts for images, decks, and campaigns.", by: "Nimbus Labs", tone: "multi", letter: "V" },
-  { name: "Code Companion", copy: "Debug, explain, test, and improve working code.", by: "Community", tone: "green", letter: "C" },
-  { name: "Writing Coach", copy: "Edit drafts and strengthen voice, clarity, and structure.", by: "Nimbus Labs", tone: "rose", letter: "W" },
-  { name: "Data Analyst", copy: "Explore datasets and surface the decisions that matter.", by: "Community", tone: "blue", letter: "D" },
+  { name: "Research Scholar", copy: "Find sources and turn dense papers into clear notes.", by: "Nimbus Labs", tone: "violet", letter: "R", category: "Research & Analysis" },
+  { name: "Trip Planner", copy: "Shape a practical itinerary around your pace and budget.", by: "Community", tone: "yellow", letter: "T", category: "Productivity" },
+  { name: "Visual Maker", copy: "Develop polished concepts for images, decks, and campaigns.", by: "Nimbus Labs", tone: "multi", letter: "V", category: "Productivity" },
+  { name: "Code Companion", copy: "Debug, explain, test, and improve working code.", by: "Community", tone: "green", letter: "C", category: "Programming" },
+  { name: "Writing Coach", copy: "Edit drafts and strengthen voice, clarity, and structure.", by: "Nimbus Labs", tone: "rose", letter: "W", category: "Writing" },
+  { name: "Data Analyst", copy: "Explore datasets and surface the decisions that matter.", by: "Community", tone: "blue", letter: "D", category: "Research & Analysis" },
 ];
 
 const plans = [
@@ -172,15 +174,19 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageState, setImageState] = useState<"idle" | "loading" | "done">("idle");
+  const [imageIdeaOffset, setImageIdeaOffset] = useState(0);
   const [appQuery, setAppQuery] = useState("");
   const [appCategory, setAppCategory] = useState("Featured");
   const [featuredSlide, setFeaturedSlide] = useState(0);
+  const [gptQuery, setGptQuery] = useState("");
+  const [gptCategory, setGptCategory] = useState("Top Picks");
   const [researchQuery, setResearchQuery] = useState("");
   const [researchStatus, setResearchStatus] = useState<ResearchStatus>("ready");
   const [researchStep, setResearchStep] = useState(0);
   const [audience, setAudience] = useState<"individual" | "business">("individual");
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyTooltipPosition, setCopyTooltipPosition] = useState<{ left: number; top: number } | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [pricingReturnView, setPricingReturnView] = useState<View>("home");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,6 +195,7 @@ export default function Home() {
   const imageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const regenerateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -235,6 +242,28 @@ export default function Home() {
     }, 1750);
     return () => window.clearInterval(timer);
   }, [researchStatus]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const placeTooltip = () => {
+      const rect = copyButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const tooltipHalfWidth = 34;
+      const gutter = 12;
+      const centered = rect.left + rect.width / 2;
+      setCopyTooltipPosition({
+        left: Math.min(Math.max(centered, gutter + tooltipHalfWidth), window.innerWidth - gutter - tooltipHalfWidth),
+        top: Math.max(38, rect.top - 8),
+      });
+    };
+    placeTooltip();
+    window.addEventListener("resize", placeTooltip);
+    window.addEventListener("scroll", placeTooltip, true);
+    return () => {
+      window.removeEventListener("resize", placeTooltip);
+      window.removeEventListener("scroll", placeTooltip, true);
+    };
+  }, [copied]);
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -356,7 +385,7 @@ export default function Home() {
     setCopied(true);
     showToast("Response copied.");
     if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopied(false), 1600);
+    copyTimer.current = setTimeout(() => setCopied(false), 3000);
   };
 
   const regenerateResponse = () => {
@@ -385,6 +414,11 @@ export default function Home() {
     setResearchStatus("running");
   };
 
+  const showPricingSection = (selector: string, nextAudience?: "individual" | "business") => {
+    if (nextAudience) setAudience(nextAudience);
+    window.requestAnimationFrame(() => document.querySelector(selector)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
   const openDemoNotice = () => showToast("Authentication is disabled in this front-end demo.");
 
   const filteredApps = useMemo(() => appDirectory.filter((item) => {
@@ -393,7 +427,13 @@ export default function Home() {
     return categoryMatch && textMatch;
   }), [appCategory, appQuery]);
 
-  const filteredGpts = useMemo(() => gptDirectory.filter((item) => `${item.name} ${item.copy}`.toLowerCase().includes(appQuery.toLowerCase())), [appQuery]);
+  const filteredGpts = useMemo(() => gptDirectory.filter((item) => {
+    const categoryMatch = gptCategory === "Top Picks" || item.category === gptCategory;
+    const textMatch = `${item.name} ${item.copy} ${item.by}`.toLowerCase().includes(gptQuery.toLowerCase());
+    return categoryMatch && textMatch;
+  }), [gptCategory, gptQuery]);
+
+  const orderedImageIdeas = useMemo(() => imageIdeas.map((_, index) => imageIdeas[(index + imageIdeaOffset + imageIdeas.length) % imageIdeas.length]), [imageIdeaOffset]);
 
   const recentChats = [historyTitle, "Weekend itinerary ideas", "Explain a design system", "Notes for a product brief"];
   const searchResults = recentChats.filter((item) => item.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -466,7 +506,7 @@ export default function Home() {
               <button className="pricing-back" aria-label={`Back to ${viewNames[pricingReturnView]}`} onClick={() => go(pricingReturnView)} title={`Back to ${viewNames[pricingReturnView]}`} type="button"><Icon name="back" size={18}/><span>Back</span></button>
               <button className="pricing-brand" aria-label="Nimbus home" onClick={newChat} title="Nimbus home" type="button"><LogoMark size={28} /><span>Nimbus</span></button>
             </div>
-            <nav aria-label="Pricing navigation"><button type="button">About</button><button type="button">Features</button><button type="button">Learn</button><button type="button">Business</button><button className="selected" type="button">Pricing</button></nav>
+            <nav aria-label="Pricing navigation"><button onClick={() => showPricingSection(".pricing-hero")} type="button">About</button><button onClick={() => showPricingSection(".compare-preview")} type="button">Features</button><button onClick={() => showToast("Learning resources are not available in this demo.")} type="button">Learn</button><button onClick={() => showPricingSection(".business-grid", "business")} type="button">Business</button><button className="selected" onClick={() => showPricingSection(".pricing-hero")} type="button">Pricing</button></nav>
             <div className="header-actions"><ActionButton variant="primary" onClick={openDemoNotice}>Log in</ActionButton><ActionButton onClick={openDemoNotice}>Sign up for free</ActionButton></div>
           </header>
         ) : (
@@ -494,7 +534,7 @@ export default function Home() {
                 <div className="message-row user-row"><div className="user-message">{activePrompt}</div></div>
                 <div className="message-row assistant-row"><div className={`assistant-mark ${chatPhase === "thinking" ? "thinking" : ""}`}><LogoMark size={22} /></div><div className="assistant-message">
                   {chatPhase === "thinking" ? <div className="typing-state"><span /><span /><span /></div> : <p>{response}<span className={chatPhase === "streaming" ? "stream-caret" : ""} /></p>}
-                  {chatPhase === "done" && <div className="response-actions"><button className={`response-action ${copied ? "copied" : ""}`} aria-label={copied ? "Copied" : "Copy response"} data-tooltip={copied ? "Copied" : "Copy"} onClick={copyResponse} type="button"><span className="action-icon-swap"><span className="copy-glyph"><Icon name="copy" size={18}/></span><span className="check-glyph"><Icon name="check" size={18}/></span></span></button><button className={`response-action ${regenerating ? "regenerating" : ""}`} aria-label="Regenerate response" data-tooltip="Regenerate" disabled={regenerating} onClick={regenerateResponse} type="button"><Icon name="refresh" size={18}/></button></div>}
+                  {chatPhase === "done" && <div className="response-actions"><button ref={copyButtonRef} className={`response-action ${copied ? "copied" : ""}`} aria-describedby={copied ? "copy-feedback" : undefined} aria-label={copied ? "Copied" : "Copy response"} data-tooltip="Copy" onClick={copyResponse} type="button"><span className="action-icon-swap"><span className="copy-glyph"><Icon name="copy" size={18}/></span><span className="check-glyph"><Icon name="check" size={18}/></span></span></button><button className={`response-action ${regenerating ? "regenerating" : ""}`} aria-label="Regenerate response" data-tooltip="Regenerate" disabled={regenerating} onClick={regenerateResponse} type="button"><Icon name="refresh" size={18}/></button></div>}
                 </div></div>
               </div>
               <div className="chat-composer-dock"><ChatComposer message={message} setMessage={setMessage} submit={submitChat} toolsMenu={toolsMenu} toggleTools={toggleTools} showToast={showToast} openDemoNotice={openDemoNotice} compact /></div>
@@ -506,9 +546,9 @@ export default function Home() {
               <div className="images-rail">
                 <form className="image-prompt" onSubmit={generateImage}><Icon name="paperclip" size={20} /><input aria-label="Describe a new image" onChange={(event) => setImagePrompt(event.target.value)} placeholder="Describe a new image" value={imagePrompt} /><Icon name="mic" size={20} /><button aria-label="Create image" disabled={imageState === "loading"} type="submit"><Icon name="send" size={20} /></button></form>
                 <h1>Images</h1>
-                <div className="section-heading"><h2>Create an image</h2><div><button aria-label="Previous image ideas" type="button">‹</button><button aria-label="Next image ideas" type="button">›</button></div></div>
+                <div className="section-heading"><h2>Create an image</h2><div><button aria-label="Previous image ideas" onClick={() => setImageIdeaOffset((offset) => (offset - 1 + imageIdeas.length) % imageIdeas.length)} type="button">‹</button><button aria-label="Next image ideas" onClick={() => setImageIdeaOffset((offset) => (offset + 1) % imageIdeas.length)} type="button">›</button></div></div>
                 <div className="image-idea-row">
-                  {["Portrait mode", "Pin collection", "Miniature figure", "Hand-drawn style", "Interior design"].map((label, index) => <button className={`image-idea art-${index + 1}`} key={label} onClick={() => generateImage(undefined, label)} type="button"><span>{label}</span></button>)}
+                  {orderedImageIdeas.map((label, index) => <button className={`image-idea art-${index + 1}`} key={label} onClick={() => generateImage(undefined, label)} type="button"><span>{label}</span></button>)}
                 </div>
                 {imageState !== "idle" && <section className={`image-result ${imageState}`} aria-live="polite"><div className="generated-art"><div className="moon"/><div className="cabin"/><div className="ground"/></div><div><h2>{imageState === "loading" ? "Creating your image…" : "Your image is ready"}</h2><p>{imageState === "loading" ? "Composing light, texture, and detail" : imagePrompt}</p>{imageState === "done" && <button onClick={() => setImageState("idle")} type="button">Create another</button>}</div></section>}
               </div>
@@ -537,13 +577,14 @@ export default function Home() {
 
           {view === "gpts" && (
             <section className="directory-view gpts-view">
-              <div className="gpts-hero"><h1>GPTs</h1><p>Discover custom assistants that combine instructions, extra knowledge, and focused skills.</p><label className="directory-search"><Icon name="search" size={18}/><input aria-label="Search GPTs" onChange={(event) => setAppQuery(event.target.value)} placeholder="Search GPTs" value={appQuery}/></label></div>
+              <div className="gpts-hero"><h1>GPTs</h1><p>Discover custom assistants that combine instructions, extra knowledge, and focused skills.</p><label className="directory-search"><Icon name="search" size={18}/><input aria-label="Search GPTs" onChange={(event) => setGptQuery(event.target.value)} placeholder="Search GPTs" value={gptQuery}/></label></div>
               <div className="gpt-rail">
-                <div className="gpt-categories"><button className="active" type="button">Top Picks</button><button type="button">Productivity</button><button type="button">Programming</button><button type="button">Writing</button><button type="button">Research & Analysis</button><button onClick={() => go("apps")} type="button">Apps</button></div>
+                <div className="gpt-categories" role="tablist" aria-label="GPT categories">{["Top Picks", "Productivity", "Programming", "Writing", "Research & Analysis"].map((category) => <button aria-selected={gptCategory === category} className={gptCategory === category ? "active" : ""} key={category} onClick={() => setGptCategory(category)} role="tab" type="button">{category}</button>)}<button onClick={() => go("apps")} type="button">Apps</button></div>
                 <div className="gpt-section-title"><h2>Featured</h2><p>Curated top picks from this week</p></div>
                 <div className="gpt-feature-grid">{filteredGpts.slice(0,3).map((item) => <button key={item.name} onClick={() => showToast(`${item.name} is a visual demo.`)} type="button"><span className={`gpt-icon ${item.tone}`}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.copy}</small><em>By {item.by}</em></span></button>)}</div>
                 <div className="gpt-section-title trending-title"><h2>Trending</h2><p>Most popular assistants in our community</p></div>
                 <div className="gpt-trending">{filteredGpts.map((item, index) => <button key={item.name} onClick={() => showToast(`${item.name} is a visual demo.`)} type="button"><b>{index + 1}</b><span className={`gpt-icon small ${item.tone}`}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.copy}</small><em>By {item.by}</em></span></button>)}</div>
+                {!filteredGpts.length && <p className="empty-state gpt-empty">No GPTs match this view.</p>}
               </div>
             </section>
           )}
@@ -572,6 +613,7 @@ export default function Home() {
 
       {checkoutPlan && <div className="modal-backdrop checkout-backdrop" role="presentation" onClick={() => setCheckoutPlan(null)}><section className="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-title" onClick={(event) => event.stopPropagation()}><button className="icon-button" aria-label="Close checkout" onClick={() => setCheckoutPlan(null)} type="button"><Icon name="close" size={19}/></button><LogoMark size={30}/><span>Front-end preview</span><h2 id="checkout-title">Continue with {checkoutPlan}</h2><p>This checkout is intentionally inactive. No payment or account information is collected.</p><button onClick={() => { setCheckoutPlan(null); showToast("Checkout is disabled in this demo."); }} type="button">Return to pricing</button></section></div>}
 
+      {copied && copyTooltipPosition && <div id="copy-feedback" className="copy-feedback-tooltip" role="tooltip" style={{ left: copyTooltipPosition.left, top: copyTooltipPosition.top }}>Copied</div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
